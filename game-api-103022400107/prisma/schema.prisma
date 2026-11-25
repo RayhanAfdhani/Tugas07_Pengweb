@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id          Int      @id @default(autoincrement())
+  title       String
+  codeName    String
+  description String
+  genre       String
+  rating      Float
+  releaseYear Int
+  price       Float    @default(0)
+  platforms   String[]
+  badge       String
+  image       String
+  developer   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("games")
+}

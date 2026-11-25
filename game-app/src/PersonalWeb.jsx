@@ -1,14 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import styles from './PersonalWeb.module.css';
 
+const EMPTY_FORM = {
+  title: '',
+  codeName: '',
+  description: '',
+  genre: '',
+  rating: '',
+  releaseYear: '',
+  price: '',
+  platforms: '',
+  badge: '',
+  image: '',
+  developer: '',
+};
+
 export default function PersonalWeb() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedGame, setSelectedGame] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [notice, setNotice] = useState('');
 
-  const API_URL = 'https://dummyjson.com/products?limit=6';
+  const API_URL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}/games`;
 
   const fetchGameCatalog = async () => {
     setLoading(true);
@@ -21,89 +42,101 @@ export default function PersonalWeb() {
         throw new Error('Gagal terhubung ke server katalog.');
       }
 
-      const data = await response.json();
-
-      const gamePresets = [
-        {
-          codeName: 'CYBER-2077',
-          genre: 'Cyberpunk / Action RPG',
-          rating: '4.9',
-          releaseYear: '2024',
-          platforms: ['PC (Steam)', 'PS5'],
-          badge: 'Editor Choice',
-          image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=900&q=80',
-          developer: 'Afdhani Studio'
-        },
-        {
-          codeName: 'VANGUARD-X',
-          genre: 'Sci-Fi / Space Combat',
-          rating: '4.8',
-          releaseYear: '2023',
-          platforms: ['PC (Windows)', 'SteamOS'],
-          badge: 'Trending #1',
-          image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=900&q=80',
-          developer: 'Rayhan Digital Lab'
-        },
-        {
-          codeName: 'SOUL-CHRONICLES',
-          genre: 'Dark Fantasy / Soulslike',
-          rating: '4.9',
-          releaseYear: '2024',
-          platforms: ['PC (Steam)', 'Xbox Series X'],
-          badge: 'Masterpiece',
-          image: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=900&q=80',
-          developer: 'FromAfdhani Archive'
-        },
-        {
-          codeName: 'NEON-PROTOCOL',
-          genre: 'Tactical Stealth / Cyber Ops',
-          rating: '4.7',
-          releaseYear: '2023',
-          platforms: ['PC (Steam)', 'Cloud Gaming'],
-          badge: 'Best Soundtrack',
-          image: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=900&q=80',
-          developer: 'Kojima & Rayhan Partner'
-        },
-        {
-          codeName: 'ORBITAL-INFINITY',
-          genre: 'Deep Space Simulation',
-          rating: '4.8',
-          releaseYear: '2025',
-          platforms: ['PC (Steam)', 'Steam VR'],
-          badge: 'Most Anticipated',
-          image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=900&q=80',
-          developer: 'Cosmic Rayhan Works'
-        },
-        {
-          codeName: 'APEX-LEGENDS-ZERO',
-          genre: 'Battle Royale / FPS',
-          rating: '4.6',
-          releaseYear: '2024',
-          platforms: ['PC (Steam)', 'PS5', 'Xbox'],
-          badge: 'Popular',
-          image: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=80',
-          developer: 'Afdhani Esports Lab'
-        }
-      ];
-
-      const enrichedGames = data.products.map((item, idx) => {
-        const preset = gamePresets[idx % gamePresets.length];
-        return {
-          id: item.id,
-          title: item.title,
-          description: item.description,
-          price: item.price,
-          brand: item.brand || 'Original Title',
-          ...preset
-        };
-      });
-
-      setGames(enrichedGames);
+      setGames(await response.json());
     } catch (err) {
       console.error('Data fetch error:', err);
       setError('Gagal memuat katalog game. Silakan periksa koneksi Anda.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const showNotice = (text) => {
+    setNotice(text);
+    setTimeout(() => setNotice(''), 3000);
+  };
+
+  const openAddForm = () => {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFormError('');
+    setFormOpen(true);
+  };
+
+  const openEditForm = (game) => {
+    setEditingId(game.id);
+    setForm({
+      title: game.title,
+      codeName: game.codeName,
+      description: game.description,
+      genre: game.genre,
+      rating: String(game.rating),
+      releaseYear: String(game.releaseYear),
+      price: String(game.price),
+      platforms: game.platforms.join(', '),
+      badge: game.badge,
+      image: game.image,
+      developer: game.developer,
+    });
+    setFormError('');
+    setSelectedGame(null);
+    setFormOpen(true);
+  };
+
+  const handleFormChange = (e) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError('');
+
+    const payload = {
+      ...form,
+      rating: Number(form.rating),
+      releaseYear: Number(form.releaseYear),
+      price: form.price === '' ? 0 : Number(form.price),
+      platforms: form.platforms.split(',').map((p) => p.trim()).filter(Boolean),
+    };
+
+    try {
+      const response = await fetch(
+        editingId ? `${API_URL}/${editingId}` : API_URL,
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+        throw new Error(msg || 'Gagal menyimpan game.');
+      }
+
+      setFormOpen(false);
+      showNotice(editingId ? 'Game berhasil diperbarui.' : 'Game berhasil ditambahkan.');
+      await fetchGameCatalog();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const response = await fetch(`${API_URL}/${deleteTarget.id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Gagal menghapus game.');
+      showNotice(`Game "${deleteTarget.title}" berhasil dihapus.`);
+      setDeleteTarget(null);
+      setSelectedGame(null);
+      await fetchGameCatalog();
+    } catch (err) {
+      setDeleteTarget(null);
+      showNotice(err.message);
     }
   };
 
@@ -144,13 +177,18 @@ export default function PersonalWeb() {
             </p>
           </div>
           <div className={styles.actionPanel}>
-            <button
-              className={styles.refreshBtn}
-              onClick={fetchGameCatalog}
-              disabled={loading}
-            >
-              🔄 Perbarui Katalog
-            </button>
+            <div className={styles.buttonGroup}>
+              <button className={styles.refreshBtn} onClick={openAddForm}>
+                ➕ Tambah Game
+              </button>
+              <button
+                className={styles.refreshBtn}
+                onClick={fetchGameCatalog}
+                disabled={loading}
+              >
+                🔄 Perbarui Katalog
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -253,6 +291,14 @@ export default function PersonalWeb() {
                       >
                         Lihat Detail Game →
                       </button>
+                      <div className={styles.cardActions}>
+                        <button className={styles.editButton} onClick={() => openEditForm(game)}>
+                          ✏️ Ubah
+                        </button>
+                        <button className={styles.deleteButton} onClick={() => setDeleteTarget(game)}>
+                          🗑️ Hapus
+                        </button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -321,6 +367,12 @@ export default function PersonalWeb() {
               </div>
 
               <div className={styles.modalActions}>
+                <button className={styles.editButton} onClick={() => openEditForm(selectedGame)}>
+                  ✏️ Ubah
+                </button>
+                <button className={styles.deleteButton} onClick={() => setDeleteTarget(selectedGame)}>
+                  🗑️ Hapus
+                </button>
                 <button
                   className={styles.modalCloseActionButton}
                   onClick={() => setSelectedGame(null)}
@@ -332,6 +384,109 @@ export default function PersonalWeb() {
           </div>
         </div>
       )}
+
+      {formOpen && (
+        <div className={styles.modalOverlay} onClick={() => !saving && setFormOpen(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <button
+              className={styles.closeModalBtn}
+              onClick={() => setFormOpen(false)}
+              aria-label="Tutup"
+            >
+              ✕
+            </button>
+            <form className={styles.formBody} onSubmit={handleSubmit}>
+              <h2 className={styles.formTitle}>
+                {editingId ? 'Ubah Data Game' : 'Tambah Game Baru'}
+              </h2>
+
+              <div className={styles.formGrid}>
+                <label className={styles.formField}>
+                  <span>Judul</span>
+                  <input name="title" value={form.title} onChange={handleFormChange} required />
+                </label>
+                <label className={styles.formField}>
+                  <span>Kode Nama</span>
+                  <input name="codeName" value={form.codeName} onChange={handleFormChange} required />
+                </label>
+                <label className={styles.formField}>
+                  <span>Genre</span>
+                  <input name="genre" value={form.genre} onChange={handleFormChange} required />
+                </label>
+                <label className={styles.formField}>
+                  <span>Developer</span>
+                  <input name="developer" value={form.developer} onChange={handleFormChange} required />
+                </label>
+                <label className={styles.formField}>
+                  <span>Rating (0 - 5)</span>
+                  <input name="rating" type="number" step="0.1" min="0" max="5" value={form.rating} onChange={handleFormChange} required />
+                </label>
+                <label className={styles.formField}>
+                  <span>Tahun Rilis</span>
+                  <input name="releaseYear" type="number" min="1970" max="2035" value={form.releaseYear} onChange={handleFormChange} required />
+                </label>
+                <label className={styles.formField}>
+                  <span>Harga (USD)</span>
+                  <input name="price" type="number" step="0.01" min="0" value={form.price} onChange={handleFormChange} />
+                </label>
+                <label className={styles.formField}>
+                  <span>Badge</span>
+                  <input name="badge" value={form.badge} onChange={handleFormChange} required />
+                </label>
+                <label className={`${styles.formField} ${styles.formFull}`}>
+                  <span>Platform (pisahkan dengan koma)</span>
+                  <input name="platforms" value={form.platforms} onChange={handleFormChange} placeholder="PC (Steam), PS5" required />
+                </label>
+                <label className={`${styles.formField} ${styles.formFull}`}>
+                  <span>URL Gambar</span>
+                  <input name="image" value={form.image} onChange={handleFormChange} required />
+                </label>
+                <label className={`${styles.formField} ${styles.formFull}`}>
+                  <span>Deskripsi</span>
+                  <textarea name="description" rows="3" value={form.description} onChange={handleFormChange} required />
+                </label>
+              </div>
+
+              {formError && <p className={styles.formError}>{formError}</p>}
+
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.modalCloseActionButton}
+                  onClick={() => setFormOpen(false)}
+                  disabled={saving}
+                >
+                  Batal
+                </button>
+                <button type="submit" className={styles.submitButton} disabled={saving}>
+                  {saving ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className={styles.modalOverlay} onClick={() => setDeleteTarget(null)}>
+          <div className={`${styles.modalContent} ${styles.confirmBox}`} onClick={(e) => e.stopPropagation()}>
+            <h3 className={styles.formTitle}>Hapus Game?</h3>
+            <p className={styles.statusText}>
+              Game <strong>{deleteTarget.title}</strong> akan dihapus permanen dari database.
+            </p>
+            <div className={styles.modalActions}>
+              <button className={styles.modalCloseActionButton} onClick={() => setDeleteTarget(null)}>
+                Batal
+              </button>
+              <button className={styles.dangerButton} onClick={handleDelete}>
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {notice && <div className={styles.toast}>{notice}</div>}
 
       <footer className={styles.footer}>
         <div className={styles.footerContent}>
